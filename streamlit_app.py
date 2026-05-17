@@ -5,10 +5,11 @@ from fpdf import FPDF
 import base64
 
 st.set_page_config(page_title="MediTrack", page_icon="💊", layout="wide")
+
 st.title("💊 MediTrack")
 st.markdown("**Your personal medication manager** — inspired by Medisafe")
 
-# Initialize session state
+# Session State
 if 'medications' not in st.session_state:
     st.session_state.medications = []
 if 'history' not in st.session_state:
@@ -38,6 +39,7 @@ if page == "Add Medication":
                 }
                 st.session_state.medications.append(med)
                 st.success(f"✅ {name} added!")
+                st.rerun()
             else:
                 st.error("Medication name is required")
 
@@ -58,7 +60,7 @@ elif page == "Dashboard":
                 cols = st.columns(len(med['times']))
                 for idx, t in enumerate(med['times']):
                     with cols[idx]:
-                        if st.button(f"✅ Taken at {t}", key=f"taken_{med['id']}_{t}_{len(st.session_state.history)}"):
+                        if st.button(f"✅ Taken at {t}", key=f"taken_{med['id']}_{t}"):
                             st.session_state.history.append({
                                 "date": today,
                                 "med_name": med['name'],
@@ -67,26 +69,25 @@ elif page == "Dashboard":
                             })
                             st.toast(f"Logged {med['name']} at {t}", icon="✅")
 
-# ====================== MY MEDICATIONS (with Bulk Delete) ======================
+# ====================== MY MEDICATIONS - Bulk Delete ======================
 elif page == "My Medications":
     st.header("📋 My Medications")
     
     if st.session_state.medications:
-        # Bulk delete
         selected_ids = []
-        for med in st.session_state.medications[:]:
-            col1, col2, col3 = st.columns([4, 1, 1])
+        for med in st.session_state.medications:
+            col1, col2, col3 = st.columns([5, 1, 1])
             with col1:
                 st.write(f"**{med['name']}** — {med['dosage']}")
             with col2:
                 if st.checkbox("Select", key=f"sel_{med['id']}"):
                     selected_ids.append(med['id'])
             with col3:
-                if st.button("🗑️ Delete", key=f"del_{med['id']}"):
+                if st.button("🗑️", key=f"del_{med['id']}"):
                     st.session_state.medications = [m for m in st.session_state.medications if m['id'] != med['id']]
                     st.rerun()
         
-        if selected_ids and st.button("🗑️ Delete Selected Medications", type="primary"):
+        if selected_ids and st.button("🗑️ Delete Selected", type="primary"):
             st.session_state.medications = [m for m in st.session_state.medications if m['id'] not in selected_ids]
             st.success(f"Deleted {len(selected_ids)} medication(s)")
             st.rerun()
@@ -96,7 +97,18 @@ elif page == "My Medications":
 # ====================== REPORTS ======================
 elif page == "Reports":
     st.header("📊 Adherence Report")
-    # ... (same as before, keeping your PDF working)
+    
+    if st.session_state.history:
+        df = pd.DataFrame(st.session_state.history)
+        taken = len(df[df['status'] == "Taken"])
+        total = len(df)
+        adherence = (taken / total * 100) if total > 0 else 0
+        
+        col1, col2 = st.columns(2)
+        col1.metric("Overall Adherence", f"{adherence:.1f}%")
+        col2.metric("Total Doses Logged", total)
+    else:
+        st.info("No doses logged yet.")
 
     if st.button("📄 Generate PDF Report"):
         pdf = FPDF()
@@ -113,7 +125,7 @@ elif page == "Reports":
         
         pdf_bytes = pdf.output(dest="S").encode("latin1")
         b64 = base64.b64encode(pdf_bytes).decode()
-        href = f'<a href="data:application/octet-stream;base64,{b64}" download="MediTrack_Report.pdf">📥 Download PDF</a>'
+        href = f'<a href="data:application/octet-stream;base64,{b64}" download="MediTrack_Report.pdf">📥 Download PDF Report</a>'
         st.markdown(href, unsafe_allow_html=True)
 
-st.sidebar.caption("💊 MediTrack v2 — Medisafe Inspired")
+st.sidebar.caption("💊 MediTrack v2")
