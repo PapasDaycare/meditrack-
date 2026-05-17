@@ -1,0 +1,113 @@
+import datetime
+import time
+import threading
+import schedule
+import pandas as pd
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+import os
+
+class Medication:
+    def __init__(self, name, dosage, times, duration_days=30):
+        self.name = name
+        self.dosage = dosage
+        self.times = times  # list of "HH:MM" strings
+        self.duration_days = duration_days
+        self.history = []  # list of (date, time, status) tuples
+
+meds = []
+users = {"Main User": []}  # Simulate family
+
+def add_medication(user="Main User"):
+    name = input("Medication name: ")
+    dosage = input("Dosage (e.g., 500mg): ")
+    times_str = input("Times (comma-separated HH:MM, e.g., 08:00,14:00,20:00): ")
+    times = [t.strip() for t in times_str.split(",")]
+    duration = int(input("Duration in days (default 30): ") or 30)
+    
+    med = Medication(name, dosage, times, duration)
+    if user not in users:
+        users[user] = []
+    users[user].append(med)
+    meds.append(med)
+    print(f"✅ Added {name} for {user}")
+
+def log_dose(med_name, status="Taken"):
+    now = datetime.datetime.now()
+    for med in meds:
+        if med.name.lower() == med_name.lower():
+            med.history.append((now.date(), now.strftime("%H:%M"), status))
+            print(f"✅ Logged: {med_name} {status} at {now.strftime('%H:%M')}")
+            return
+    print("Medication not found.")
+
+def show_today_schedule(user="Main User"):
+    today = datetime.date.today()
+    print(f"\n📅 Today's Schedule for {user} ({today}):")
+    for med in users.get(user, []):
+        print(f"💊 {med.name} - {med.dosage} at {', '.join(med.times)}")
+
+def generate_pdf_report(user="Main User"):
+    filename = f"{user}_med_report_{datetime.date.today()}.pdf"
+    c = canvas.Canvas(filename, pagesize=letter)
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(100, 750, f"Medication Report - {user}")
+    c.setFont("Helvetica", 12)
+    y = 700
+    
+    for med in users.get(user, []):
+        c.drawString(100, y, f"{med.name} ({med.dosage})")
+        y -= 20
+        taken = sum(1 for h in med.history if h[2] == "Taken")
+        total = len(med.history)
+        adherence = (taken / total * 100) if total > 0 else 0
+        c.drawString(120, y, f"Adherence: {adherence:.1f}% ({taken}/{total} doses)")
+        y -= 30
+    
+    c.save()
+    print(f"📄 PDF Report generated: {filename}")
+
+def reminder_checker():
+    while True:
+        now = datetime.datetime.now().strftime("%H:%M")
+        for med in meds:
+            if now in med.times:
+                print(f"🔔 REMINDER: Time to take {med.name} ({med.dosage})!")
+                # In a real app, use notifications here
+        time.sleep(60)  # Check every minute
+
+def run_reminders():
+    thread = threading.Thread(target=reminder_checker, daemon=True)
+    thread.start()
+
+# Simple CLI Menu
+def main():
+    run_reminders()
+    print("🚀 MediSafe Clone Started! Reminders active.")
+    
+    while True:
+        print("\n=== MediSafe Clone ===")
+        print("1. Add Medication")
+        print("2. Show Today's Schedule")
+        print("3. Log Dose")
+        print("4. Generate PDF Report")
+        print("5. Exit")
+        choice = input("Choose: ")
+        
+        if choice == "1":
+            add_medication()
+        elif choice == "2":
+            show_today_schedule()
+        elif choice == "3":
+            name = input("Medication name: ")
+            status = input("Taken or Missed? ") or "Taken"
+            log_dose(name, status)
+        elif choice == "4":
+            generate_pdf_report()
+        elif choice == "5":
+            break
+        else:
+            print("Invalid choice.")
+
+if __name__ == "__main__":
+    main()
